@@ -45,7 +45,7 @@ def get_toggl(toggl, start_date="2021-09-03", end_date="2021-09-03"):
                 "https://api.track.toggl.com/api/v8/time_entries/{}".format(i)
             )["data"]
         )
-        print(time_entry_ids.index(i))
+        #print(time_entry_ids.index(i))
         sleep(0.1)
 
     df_toggl = pd.DataFrame.from_dict(entries)

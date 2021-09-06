@@ -18,6 +18,7 @@ path = "../data/toggl"
 
 df_toggl = tg.get_toggl(toggl, start_date, end_date)
 export_to_json = tg.df_toggl_to_json_files(path, df_toggl)
+
 df_summary = (
     df_toggl[["lunes_semana", "client", "project", "h_registradas"]]
     .groupby(by=["lunes_semana", "client", "project"], as_index=False)
@@ -38,6 +39,10 @@ df_asig = xl.get_asignacion(asignacion_path)
 df_toggl_asig = pd.merge(
     df_asig, df_summary, how="outer", on=["lunes_semana", "client", "project"]
 )
-
+df_toggl_asig['h_registradas'] = df_toggl_asig['h_registradas'].fillna(0)
+df_toggl_asig['h_asignadas'] = df_toggl_asig['h_asignadas'].fillna(0)
+df_toggl_asig['description'] = df_toggl_asig['description'].fillna("")
+df_toggl_asig['h_pendientes'] = df_toggl_asig['h_asignadas'] - df_toggl_asig['h_registradas']
+df_toggl_asig = df_toggl_asig[['lunes_semana', 'client', 'project', 'h_asignadas', 'h_registradas', 'h_pendientes', 'description']]
 
 df_toggl = tg.read_cache_toggl(path, start_date, end_date)
