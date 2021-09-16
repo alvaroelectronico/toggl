@@ -43,8 +43,8 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
         return df_toggl
 
     request_config = dict(
-        start_date="{}T00:00:00+02:00".format(start_date),
-        end_date="{}T23:59:59+02:00".format(end_date),
+        start_date="{}T00:00:00+02:00".format(start_date),  #start_date="{}T00:00:00+02:00".format(start_date),
+        end_date="{}T23:59:59+02:00".format(end_date),      #end_date="{}T23:59:59+02:00".format(end_date)
     )
 
     # This returns information for all entries
@@ -61,7 +61,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
                 "date",
                 "client",
                 "project",
-                "h_registradas",
+                "h_toggl",
                 "description",
                 "start",
                 "lunes_semana",
@@ -84,7 +84,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
         )
         # if i in id_prints:
         #     print("{}% downloaded".format(list_id_prints[i]))
-        sleep(0.1)
+        sleep(0.2)
 
     df_toggl = pd.DataFrame.from_dict(entries)
     df_toggl["date"] = df_toggl["start"].apply(
@@ -114,7 +114,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
     # Merging client column into df_toggl
     df_toggl = pd.merge(df_toggl, df_clients[["cid", "client"]], on=["cid"], how="left")
 
-    df_toggl["h_registradas"] = df_toggl["duration"] / 3600
+    df_toggl["h_toggl"] = df_toggl["duration"] / 3600
     df_toggl["lunes_semana"] = df_toggl["date"].apply(
         lambda x: x - timedelta(days=x.weekday() % 7)
     )
@@ -128,7 +128,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
         df_toggl, df_worspaces[["wid", "workspace"]], how="left", on="wid"
     )
     # If the timer is running duration is negative. This removes that entry:
-    df_toggl = df_toggl.drop(df_toggl[df_toggl.h_registradas < 0].index, axis=0)
+    df_toggl = df_toggl.drop(df_toggl[df_toggl.h_toggl < 0].index, axis=0)
     # Merging workspaces into toggl
 
     df_toggl = df_toggl[
@@ -136,7 +136,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
             "date",
             "client",
             "project",
-            "h_registradas",
+            "h_toggl",
             "description",
             "start",
             "lunes_semana",
