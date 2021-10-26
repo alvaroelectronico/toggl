@@ -1,12 +1,19 @@
 import datetime
 import os
 from time import *
+import pytz
 
 import numpy as np
 import pandas as pd
 import json
 from datetime import *
-from data.config import TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, START_DATE_DEF, END_DATE_DEF, USE_CACHE
+from data.config import (
+    TOGGL_TOKEN_PATH,
+    TOGGL_CACHE_PATH,
+    START_DATE_DEF,
+    END_DATE_DEF,
+    USE_CACHE,
+)
 from toggl.TogglPy import Toggl
 
 # Request parameters. So far, only start date
@@ -14,6 +21,8 @@ from toggl.TogglPy import Toggl
 """
 This function returns a toggl object using the toggle token
 """
+
+
 def get_toggl_obj(toggl_token_path=TOGGL_TOKEN_PATH):
 
     # create a Toggl object and set our API key
@@ -28,23 +37,38 @@ def get_toggl_obj(toggl_token_path=TOGGL_TOKEN_PATH):
 
     return toggl
 
+
 """
 This function returns a dataframe with all toggl entries either
 getting data from Toggle (using the Toggl API)
 or reading from json files.
 When reading from Toggl directly info is exported as json files
 """
-def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_cache=USE_CACHE):
+
+
+def get_toggl_df(
+    toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_cache=USE_CACHE
+):
     if use_cache and os.path.exists(TOGGL_CACHE_PATH):
-        df_toggl = read_cache_toggl(TOGGL_CACHE_PATH)
-        df_toggl = df_toggl[(df_toggl.date >= start_date) & (df_toggl.date <= end_date)]
-        df_toggl.lunes_semana = pd.to_datetime(df_toggl.lunes_semana)
-        df_toggl['lunes_semana'] = df_toggl['lunes_semana'].astype("datetime64[ns]")
+        dates = pd.date_range(start_date, end_date)
+        dates = [d.strftime("%Y-%m-%d") for d in dates]
+        df_toggl = pd.DataFrame()
+        for d in dates:
+            df = read_cache_toggl(d,  TOGGL_CACHE_PATH)
+            if df.shape[0]>0:
+                # df_toggl = df_toggl.(df)
+                df_toggl = df_toggl.append(df)
+        df_toggl.reset_index(inplace=True)
+        df_toggl.drop("index", axis=1, inplace=True)
         return df_toggl
 
     request_config = dict(
-        start_date="{}T00:00:00+02:00".format(start_date),  #start_date="{}T00:00:00+02:00".format(start_date),
-        end_date="{}T23:59:59+02:00".format(end_date),      #end_date="{}T23:59:59+02:00".format(end_date)
+        start_date="{}T00:00:00+02:00".format(
+            start_date
+        ),
+        end_date="{}T23:59:59+02:00".format(
+            end_date
+        ),
     )
 
     # This returns information for all entries
@@ -65,16 +89,13 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
                 "description",
                 "start",
                 "lunes_semana",
-                "workspace"
+                "workspace",
             ]
         )
         df_toggl
         return df_toggl
 
     entries = list()
-    # n_prints = 4
-    # id_prints = [i for i in range(len(entries)) if np.mod(i+1, len(entries)/n_prints) == 0]
-    # list_id_prints = {i: 100/n_prints*(1+id_prints.index(i)) for i in id_prints }
 
     for i in time_entry_ids:
         entries.append(
@@ -82,14 +103,20 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
                 "https://api.track.toggl.com/api/v8/time_entries/{}".format(i)
             )["data"]
         )
-        # if i in id_prints:
-        #     print("{}% downloaded".format(list_id_prints[i]))
         sleep(0.2)
 
     df_toggl = pd.DataFrame.from_dict(entries)
-    df_toggl["date"] = df_toggl["start"].apply(
-        lambda x: datetime.fromisoformat(x).date()
+
+    madrid_tzinfo = pytz.timezone("Europe/Madrid")
+    df_toggl.start = df_toggl.start.apply(
+        lambda x: pd.to_datetime(x).astimezone(madrid_tzinfo)
     )
+
+    df_toggl["date"] = df_toggl["start"].apply(
+        lambda x: pd.to_datetime(x).strftime("%Y-%m-%d")
+    )
+
+    df_toggl["date"] = df_toggl["date"].apply(lambda x: pd.to_datetime(x))
 
     # Getting names of projects
     all_pid = [int(x) for x in df_toggl.pid.unique() if str(x) != "nan"]
@@ -116,7 +143,7 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
 
     df_toggl["h_toggl"] = df_toggl["duration"] / 3600
     df_toggl["lunes_semana"] = df_toggl["date"].apply(
-        lambda x: x - timedelta(days=x.weekday() % 7)
+        lambda x: pd.to_datetime(x) - timedelta(days=pd.to_datetime(x).weekday() % 7)
     )
 
     # Getting all workspaces
@@ -143,48 +170,61 @@ def get_toggl_df(toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_ca
             "workspace",
         ]
     ]
+
     df_toggl.lunes_semana = pd.to_datetime(df_toggl.lunes_semana)
-    df_toggl["lunes_semana"] = df_toggl["lunes_semana"].astype("datetime64[ns]")
+
     df_toggl_to_json_files(df_toggl, path=TOGGL_CACHE_PATH)
+
     return df_toggl
+
 
 """"
 Given a dataframe with Toggl info, data is stored in as many json files as days
 """
 
+
 def df_toggl_to_json_files(df_toggl, path=TOGGL_CACHE_PATH):
-    ok = 0
-    dates = pd.date_range(df_toggl.date.min(), df_toggl.date.max()).tolist()
-    dates = [datetime.date(d) for d in dates]
-    df_toggl.lunes_semana = df_toggl.lunes_semana.apply(lambda x: datetime.strftime(x, "%Y-%m-%d"))
+    df = df_toggl.copy(deep=True)
+    df.date = df.date.apply(lambda x: x.strftime("%Y-%m-%d"))
+    df.lunes_semana = df.lunes_semana.apply(lambda x: x.strftime("%Y-%m-%d"))
+    df.start = df.start.apply(lambda x: x.strftime("%Y-%m-%d %H:%M"))
+
+    dates = pd.date_range(df.date.min(), df.date.max()).tolist()
+    dates = [d.strftime("%Y-%m-%d") for d in dates]
 
     for d in dates:
-        df_to_json = df_toggl[df_toggl.date == d]
-        entries = df_to_json.to_json()
-        file_path = "{}/{}.json".format(path, d)
-        with open(file_path, "w") as f:
-            f.write(entries)
+        df_to_json = df[df.date == d]
+        if df_to_json.shape[0]>0:
+            entries = df_to_json.to_json(orient='records', lines=True, date_format='iso')
+            file_path = "{}/{}.json".format(path, d)
+            with open(file_path, "w") as f:
+                f.write(entries)
     ok = 1
     return ok
+
 
 """"
 Returning a dataframe with Toggl information extracted from cache json files
 """
-def read_cache_toggl(path=TOGGL_CACHE_PATH, start_date=START_DATE_DEF, end_date=END_DATE_DEF):
-    dates = pd.date_range(start_date, end_date).tolist()
-    dates = [datetime.date(d) for d in dates]
+
+
+def read_cache_toggl(date, path=TOGGL_CACHE_PATH):
     df_toggl = pd.DataFrame()
 
-    for d in dates:
-        file_path = "{}/{}.json".format(path, d)
-        try:
-            with open(file_path, "r") as f:
-                json_string = f.read()
-            df = pd.read_json(json_string)
-            df_toggl = pd.concat([df, df_toggl])
-        except:
-            pass
+    # for d in dates:
+    file_path = "{}\{}.json".format(path, date)
+    try:
+        with open(file_path, "r") as f:
+            json_string = f.read()
+        df_toggl = pd.read_json(json_string, orient='records', lines=True)
+    except:
+        pass
 
-    # df_toggl["lunes_semana"] = df_toggl["lunes_semana"].astype("datetime64[ns]")
+    try:
+        df_toggl.date = df_toggl.date.apply(lambda x: pd.to_datetime(x))
+        df_toggl.start = df_toggl.start.apply(lambda x: pd.to_datetime(x))
+        df_toggl.lunes_semana = df_toggl.lunes_semana.apply(lambda x: pd.to_datetime(x))
+    except:
+        pass
 
     return df_toggl
