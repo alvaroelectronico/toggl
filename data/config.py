@@ -17,3 +17,9 @@ ASIGNACION_PATH = get_abs_path("asignacion.xlsx")
 USE_CACHE = False
 START_DATE_DEF = '2021-09-01'
 END_DATE_DEF = datetime.today().strftime("%Y-%m-%d")
+
+# Output files
+ID_GSHEET = "1xxqT3cYf1CxJH9H1Ncgx32Lg833ycJVAwfCeXX2ee6Q"
+ID_SHEET_ASIG = 392173937
+IG_SHEET_PRUEBA = 508370956
+
