@@ -16,8 +16,8 @@ def get_asignacion(file_path):
 
     # df = pd.read_excel(file_path, sheet_name='asig', usecols="A:E")
     df = pd.read_excel(file_path, sheet_name='asig')
-    df.columns = df.iloc[2, :]
-    df = df.iloc[3:, :]
+    df.columns = df.iloc[7, :]
+    df = df.iloc[8:, :]
     df = df[~df['WS'].isna()]
     # cols_week = [c for c in df.columns in c]
     cols_week = ['WS', 'client', 'project', 'asig_s']
