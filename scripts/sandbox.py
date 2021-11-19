@@ -40,9 +40,13 @@ def read_all_without_cache(start_date):
     return df_toggl
 
 def read_toggl(dates_cache, dates_no_cache):
-    start_date = dates_cache[0]
-    end_date = dates_cache[len(dates_cache)-1]
-    df_toggl = tg.get_toggl_df(toggl, start_date, end_date, use_cache=True)
+    if len(dates_cache)>0:
+        start_date = dates_cache[0]
+        end_date = dates_cache[len(dates_cache)-1]
+        print("reading cache for {} to {}".format(start_date, end_date))
+        df_toggl = tg.get_toggl_df(toggl, start_date, end_date, use_cache=True)
+    else:
+        df_toggl = pd.DataFrame()
     for d in dates_no_cache:
         d_str = d.strftime("%Y-%m-%d")
         print("reading {}".format(d_str))
@@ -92,6 +96,10 @@ def get_df_to_export(df_toggl):
         .groupby(by=["client", "project"], as_index=False)
         .sum()
     )
+    df_summary_day.sort_values(by=['date'], ascending=False, inplace=True)
+    df_summary_week.sort_values(by=['lunes_semana'], ascending=False, inplace=True)
+    df_toggl.sort_values(by=['date'], ascending=False, inplace=True)
+    df_summary_to_xlsx.sort_values(by=['lunes_semana'], ascending=False, inplace=True)
 
     df_summary_day.date = df_summary_day.date.apply (lambda x: x.strftime("%d/%m/%Y"))
     df_summary_week.lunes_semana = df_summary_week.lunes_semana.apply(lambda x: x.strftime("%d/%m/%Y"))
@@ -121,33 +129,38 @@ def write_gsheet(df_toggl):
     sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
     sheet_all = dr.get_sheet(gsheet, ID_SHEET_TOGGL_ALL)
     df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_df_to_export(df_toggl)
-    a =  dr.df_to_gsheet(df_summary_week, sheet_weekly)
+    a = dr.df_to_gsheet(df_summary_week, sheet_weekly)
     a *= dr.df_to_gsheet(df_summary_day, sheet_daily)
     a *= dr.df_to_gsheet(df_summary_all, sheet_all)
-    return df_toggl
 
-def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), last_days_no_cache=0):
-    dates_cache = pd.date_range(start_date, end_date - timedelta(days=last_days_no_cache + 1))
-    dates_no_cache = pd.date_range(end_date - timedelta(days=last_days_no_cache), end_date)
+
+def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
+    dates = pd.date_range(start_date, end_date)
+    days_cache = max(0, len(dates) - days_no_cache)
+    dates_cache = dates[0: days_cache]
+    dates_no_cache = dates[days_cache:]
+    return dates_cache, dates_no_cache
+
+def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), days_no_cache=1):
+    dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
     df_toggl = read_toggl(dates_cache, dates_no_cache)
-    df_toggl = df_toggl.sort_values(by=['date'])
     a = write_gsheet(df_toggl)
-    return a
 
 
 
-last_days_no_cache = 0
+days_no_cache = 2
 start_date = pd.to_datetime('2021-09-01')
-end_date = pd.to_datetime(datetime.today())
-# end_date = pd.to_datetime('2021-11-16')
-df_toggl = read_toggl_write_gsheet(start_date, end_date, last_days_no_cache)
+end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
+#end_date = pd.to_datetime('2021-11-15')
+dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
+
+# One step at a time
+df_toggl = read_toggl(dates_cache, dates_no_cache)
+write_gsheet(df_toggl)
+# One step
+read_toggl_write_gsheet(start_date, end_date, days_no_cache)
 
 
-# df_toggl = read_all_without_cache(start_date="2021-10-18")
-# df_toggl = read_all_but_today_with_cache()
 
-# df_summary_day, df_summary_week, df_toggl_all = write_xlsx(df_toggl)
-#df_weekly_ws = df_toggl.groupby(by=['lunes_semana', 'workspace'], as_index=False)['h_toggl'].sum()
-#df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_df_to_export(df_toggl)
-
+df_toggl, df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = read_toggl_write_gsheet(start_date, end_date, last_days_no_cache)
 
