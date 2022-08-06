@@ -5,13 +5,15 @@ import df2gspread.df2gspread
 import gspread
 import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
+from data.config import JSON_CRED_PATH
 
 
 def get_client():
     scope = ['https://spreadsheets.google.com/feeds','https://www.googleapis.com/auth/drive']
 
     # add credentials to the account
-    creds = ServiceAccountCredentials.from_json_keyfile_name('.\data\\togglag_credentials.json', scope)
+    # creds = ServiceAccountCredentials.from_json_keyfile_name('.\data\\togglag_credentials.json', scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_CRED_PATH, scope)
 
     # authorize the clientsheet
     client = gspread.authorize(creds)

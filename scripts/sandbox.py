@@ -1,43 +1,18 @@
+import sys
+sys.path.insert(0, r'D:\Dropbox\academico\gestion\time_log\toggl')
+
 import pandas as pd
 import data_io.reading_toggl as tg
 import data_io.reading_asig as xl
 from datetime import *
-from data.config import TOGGL_TOKEN_PATH, ASIGNACION_PATH, ID_SHEET_TOGGL_WEEKLY, ID_GSHEET, ID_SHEET_TOGGL_ALL, ID_SHEET_TOGGL_DAILY
+from data.config import TOGGL_TOKEN_PATH, ASIGNACION_PATH, ID_SHEET_TOGGL_WEEKLY, ID_GSHEET_2122, \
+    ID_GSHEET_2223, ID_SHEET_TOGGL_ALL, ID_SHEET_TOGGL_DAILY
 import os
 import data_io.drive_io as dr
 
+
 # Retrieving the toggle object
 toggl = tg.get_toggl_obj(TOGGL_TOKEN_PATH)
-
-def read_all_but_today_with_cache():
-    # Get info from Toggle for today and yesterada
-    start_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    end_date = datetime.today().strftime("%Y-%m-%d")
-    df_toggl = tg.get_toggl_df(toggl, start_date, end_date, use_cache=False)
-
-    start_date = "2021-09-01"
-    end_date = (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d")
-    df_toggl2 = tg.get_toggl_df(toggl, start_date, end_date, use_cache=True)
-
-    df_toggl = df_toggl.append(df_toggl2)
-
-    df_toggl.reset_index(inplace=True)
-    df_toggl.drop("index", axis=True, inplace=True)
-    return df_toggl
-
-def read_all_without_cache(start_date):
-    end_date = datetime.today()
-    dates = pd.date_range(start_date, end_date)
-    df_toggl = pd.DataFrame()
-    for d in dates:
-        d_str = d.strftime("%Y-%m-%d")
-        print("reading {}".format(d_str))
-        df = tg.get_toggl_df(toggl, d_str, d_str, use_cache=False)
-        print("read {}".format(d_str))
-        df_toggl = df_toggl.append(df)
-    df_toggl.reset_index(inplace=True)
-    df_toggl.drop("index", axis=True, inplace=True)
-    return df_toggl
 
 def read_toggl(dates_cache, dates_no_cache):
     if len(dates_cache)>0:
@@ -104,6 +79,7 @@ def get_df_to_export(df_toggl):
     df_summary_day.date = df_summary_day.date.apply (lambda x: x.strftime("%d/%m/%Y"))
     df_summary_week.lunes_semana = df_summary_week.lunes_semana.apply(lambda x: x.strftime("%d/%m/%Y"))
     df_summary_to_xlsx.lunes_semana = df_summary_to_xlsx.lunes_semana.apply(lambda x: x.strftime("%d/%m/%Y"))
+
     return df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week
 
 def write_xlsx(df_toggl):
@@ -122,9 +98,9 @@ def write_xlsx(df_toggl):
 
     return df_summary_day, df_summary_week, df_summary_all
 
-def write_gsheet(df_toggl):
+def write_gsheet(df_toggl, id_gsheet=ID_GSHEET_2122):
     client = dr.get_client()
-    gsheet = dr.get_gsheet(client, ID_GSHEET)
+    gsheet = dr.get_gsheet(client, id_gsheet)
     sheet_weekly = dr.get_sheet(gsheet, ID_SHEET_TOGGL_WEEKLY)
     sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
     sheet_all = dr.get_sheet(gsheet, ID_SHEET_TOGGL_ALL)
@@ -133,7 +109,6 @@ def write_gsheet(df_toggl):
     a *= dr.df_to_gsheet(df_summary_day, sheet_daily)
     a *= dr.df_to_gsheet(df_summary_all, sheet_all)
 
-
 def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
     dates = pd.date_range(start_date, end_date)
     days_cache = max(0, len(dates) - days_no_cache)
@@ -141,26 +116,69 @@ def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
     dates_no_cache = dates[days_cache:]
     return dates_cache, dates_no_cache
 
-def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), days_no_cache=1):
+def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), days_no_cache=1,
+                            id_ghsheet=ID_GSHEET_2122):
     dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
     df_toggl = read_toggl(dates_cache, dates_no_cache)
-    a = write_gsheet(df_toggl)
+    a = write_gsheet(df_toggl, id_ghsheet)
 
 
-
-days_no_cache = 2
+'''
+Reading recent entries
+'''
+days_no_cache = 6
 start_date = pd.to_datetime('2021-09-01')
+# end_date = pd.to_datetime('2021-12-25')
 end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
-#end_date = pd.to_datetime('2021-11-15')
+# end_date = pd.to_datetime('2021-11-15')
 dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
-
 # One step at a time
 df_toggl = read_toggl(dates_cache, dates_no_cache)
-write_gsheet(df_toggl)
-# One step
-read_toggl_write_gsheet(start_date, end_date, days_no_cache)
+write_gsheet(df_toggl, id_gsheet=ID_GSHEET_2122)
 
 
+'''
+Reading info for some days in Toggl, export to json without writing to ghseet
+'''
+days_no_cache = 1000
+start_date = pd.to_datetime('2022-01-02')
+end_date = pd.to_datetime('2022-02-01')
+dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
+df = read_toggl(dates_cache, dates_no_cache)
 
-df_toggl, df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = read_toggl_write_gsheet(start_date, end_date, last_days_no_cache)
 
+df_toggl.to_csv("..\data\\toggl_20222120.csv")
+
+
+'''
+These functions to be erased after making sure they are not needed
+'''
+# def read_all_but_today_with_cache():
+#     # Get info from Toggle for today and yesterada
+#     start_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+#     end_date = datetime.today().strftime("%Y-%m-%d")
+#     df_toggl = tg.get_toggl_df(toggl, start_date, end_date, use_cache=False)
+#
+#     start_date = "2021-09-01"
+#     end_date = (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d")
+#     df_toggl2 = tg.get_toggl_df(toggl, start_date, end_date, use_cache=True)
+#
+#     df_toggl = df_toggl.append(df_toggl2)
+#
+#     df_toggl.reset_index(inplace=True)
+#     df_toggl.drop("index", axis=True, inplace=True)
+#     return df_toggl
+#
+# def read_all_without_cache(start_date):
+#     end_date = datetime.today()
+#     dates = pd.date_range(start_date, end_date)
+#     df_toggl = pd.DataFrame()
+#     for d in dates:
+#         d_str = d.strftime("%Y-%m-%d")
+#         print("reading {}".format(d_str))
+#         df = tg.get_toggl_df(toggl, d_str, d_str, use_cache=False)
+#         print("read {}".format(d_str))
+#         df_toggl = df_toggl.append(df)
+#     df_toggl.reset_index(inplace=True)
+#     df_toggl.drop("index", axis=True, inplace=True)
+#     return df_toggl

@@ -63,10 +63,10 @@ def get_toggl_df(
         return df_toggl
 
     request_config = dict(
-        start_date="{}T00:00:00+02:00".format(
+        start_date="{}T00:00:00+00:00".format(
             start_date
         ),
-        end_date="{}T23:59:59+02:00".format(
+        end_date="{}T23:59:59+00:00".format(
             end_date
         ),
     )
