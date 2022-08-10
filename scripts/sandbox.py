@@ -126,7 +126,7 @@ def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(d
 '''
 Reading recent entries
 '''
-days_no_cache = 6
+days_no_cache = 3
 start_date = pd.to_datetime('2021-09-01')
 # end_date = pd.to_datetime('2021-12-25')
 end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
@@ -139,12 +139,12 @@ write_gsheet(df_toggl, id_gsheet=ID_GSHEET_2122)
 
 '''
 Reading info for some days in Toggl, export to json without writing to ghseet
-'''
-days_no_cache = 1000
-start_date = pd.to_datetime('2022-01-02')
-end_date = pd.to_datetime('2022-02-01')
-dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
-df = read_toggl(dates_cache, dates_no_cache)
+# '''
+# days_no_cache = 1000
+# start_date = pd.to_datetime('2022-06-09')
+# end_date = pd.to_datetime('2022-09-01')
+# dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
+# df = read_toggl(dates_cache, dates_no_cache)
 
 
 df_toggl.to_csv("..\data\\toggl_20222120.csv")

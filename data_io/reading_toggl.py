@@ -22,7 +22,6 @@ from toggl.TogglPy import Toggl
 This function returns a toggl object using the toggle token
 """
 
-
 def get_toggl_obj(toggl_token_path=TOGGL_TOKEN_PATH):
 
     # create a Toggl object and set our API key
@@ -44,7 +43,6 @@ getting data from Toggle (using the Toggl API)
 or reading from json files.
 When reading from Toggl directly info is exported as json files
 """
-
 
 def get_toggl_df(
     toggl, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_cache=USE_CACHE
@@ -182,7 +180,6 @@ def get_toggl_df(
 Given a dataframe with Toggl info, data is stored in as many json files as days
 """
 
-
 def df_toggl_to_json_files(df_toggl, path=TOGGL_CACHE_PATH):
     df = df_toggl.copy(deep=True)
     df.date = df.date.apply(lambda x: x.strftime("%Y-%m-%d"))
@@ -206,7 +203,6 @@ def df_toggl_to_json_files(df_toggl, path=TOGGL_CACHE_PATH):
 """"
 Returning a dataframe with Toggl information extracted from cache json files
 """
-
 
 def read_cache_toggl(date, path=TOGGL_CACHE_PATH):
     df_toggl = pd.DataFrame()
