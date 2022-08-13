@@ -32,7 +32,7 @@ def read_toggl(dates_cache, dates_no_cache):
     df_toggl.drop("index", axis=True, inplace=True)
     return df_toggl
 
-def get_df_to_export(df_toggl):
+def get_agg_dfs(df_toggl):
     df_summary_week = (
         df_toggl[["lunes_semana", "client", "project", "h_toggl"]]
         .groupby(by=["lunes_semana", "client", "project"], as_index=False)
@@ -84,7 +84,7 @@ def get_df_to_export(df_toggl):
 
 def write_xlsx(df_toggl):
     # TODO: this line of code is a copy of that of df_toggl_cache. It works here, but now in the function
-    df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_df_to_export(df_toggl)
+    df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_agg_dfs(df_toggl)
 
     get_abs_path = lambda f: os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'data', f))
         # try:
@@ -104,7 +104,7 @@ def write_gsheet(df_toggl, id_gsheet=ID_GSHEET_2122):
     sheet_weekly = dr.get_sheet(gsheet, ID_SHEET_TOGGL_WEEKLY)
     sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
     sheet_all = dr.get_sheet(gsheet, ID_SHEET_TOGGL_ALL)
-    df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_df_to_export(df_toggl)
+    df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_agg_dfs(df_toggl)
     a = dr.df_to_gsheet(df_summary_week, sheet_weekly)
     a *= dr.df_to_gsheet(df_summary_day, sheet_daily)
     a *= dr.df_to_gsheet(df_summary_all, sheet_all)
@@ -116,11 +116,6 @@ def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
     dates_no_cache = dates[days_cache:]
     return dates_cache, dates_no_cache
 
-def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), days_no_cache=1,
-                            id_ghsheet=ID_GSHEET_2122):
-    dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
-    df_toggl = read_toggl(dates_cache, dates_no_cache)
-    a = write_gsheet(df_toggl, id_ghsheet)
 
 
 '''
@@ -182,3 +177,9 @@ These functions to be erased after making sure they are not needed
 #     df_toggl.reset_index(inplace=True)
 #     df_toggl.drop("index", axis=True, inplace=True)
 #     return df_toggl
+
+# def read_toggl_write_gsheet(start_date='2021-09-01', end_date = pd.to_datetime(datetime.today()), days_no_cache=1,
+#                             id_ghsheet=ID_GSHEET_2122):
+#     dates_cache, dates_no_cache = get_dates_cache_no_cache(start_date, end_date, days_no_cache)
+#     df_toggl = read_toggl(dates_cache, dates_no_cache)
+#     a = write_gsheet(df_toggl, id_ghsheet)
