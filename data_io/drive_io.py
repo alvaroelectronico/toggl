@@ -48,19 +48,5 @@ def df_to_gsheet(df, sheet):
     for cell, val in zip(cells, iter_pd(df)):
         cell.value = val
     sheet.update_cells(cells)
-    return 0
 
-
-# id_gsheet = "1xxqT3cYf1CxJH9H1Ncgx32Lg833ycJVAwfCeXX2ee6Q"
-# id_sheet_asig = 392173937
-# id_sheet_prueba = 508370956
-
-# client = get_client()
-# gsheet_asig = get_gsheet(client, id_gsheet)
-# sheet_asig = get_sheet(gsheet_asig, id_sheet_asig)
-# sheet_prueba = get_sheet(gsheet_asig, id_sheet_prueba)
-#
-# df_asig = read_sheet(sheet_asig)
-# print(df_asig.head())
-# write = df_to_gsheet(df_asig.head(), sheet_prueba)
 

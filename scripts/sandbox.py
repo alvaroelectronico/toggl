@@ -33,6 +33,7 @@ def read_toggl(dates_cache, dates_no_cache):
     return df_toggl
 
 def get_agg_dfs(df_toggl):
+
     df_summary_week = (
         df_toggl[["lunes_semana", "client", "project", "h_toggl"]]
         .groupby(by=["lunes_semana", "client", "project"], as_index=False)
@@ -40,22 +41,22 @@ def get_agg_dfs(df_toggl):
     )
 
     # Getting information from asignacion.xlsx
-    asignacion_path = ASIGNACION_PATH
-    df_asig = xl.get_asignacion(asignacion_path)
-    df_asig_week = df_asig.loc[df_asig.type == 's']
-    df_asig_week = df_asig_week.drop(['type'], axis=1)
-    df_asig_week["lunes_semana"] = df_asig_week["lunes_semana"].astype("datetime64[ns]")
-
-    # Merging Toggl logged time and assigned time
-    df_toggl_asig = pd.merge(
-        df_asig_week, df_summary_week, how="outer", on=["lunes_semana", "client", "project"]
-    )
-    df_toggl_asig['h_toggl'] = df_toggl_asig['h_toggl'].fillna(0)
-    df_toggl_asig['h_asig'] = df_toggl_asig['h_asig'].fillna(0)
-    # df_toggl_asig['description'] = df_toggl_asig['description'].fillna("")
-    df_toggl_asig['h_pendientes'] = df_toggl_asig['h_asig'] - df_toggl_asig['h_toggl']
-    df_toggl_asig = df_toggl_asig[['lunes_semana', 'client', 'project', 'h_asig', 'h_toggl', 'h_pendientes']]
-    # df_toggl_asig.loc['total'] = df_toggl_asig.sum(numeric_only=True)
+    # asignacion_path = ASIGNACION_PATH
+    # df_asig = xl.get_asignacion(asignacion_path)
+    # df_asig_week = df_asig.loc[df_asig.type == 's']
+    # df_asig_week = df_asig_week.drop(['type'], axis=1)
+    # df_asig_week["lunes_semana"] = df_asig_week["lunes_semana"].astype("datetime64[ns]")
+    #
+    # # Merging Toggl logged time and assigned time
+    # df_toggl_asig = pd.merge(
+    #     df_asig_week, df_summary_week, how="outer", on=["lunes_semana", "client", "project"]
+    # )
+    # df_toggl_asig['h_toggl'] = df_toggl_asig['h_toggl'].fillna(0)
+    # df_toggl_asig['h_asig'] = df_toggl_asig['h_asig'].fillna(0)
+    # # df_toggl_asig['description'] = df_toggl_asig['description'].fillna("")
+    # df_toggl_asig['h_pendientes'] = df_toggl_asig['h_asig'] - df_toggl_asig['h_toggl']
+    # df_toggl_asig = df_toggl_asig[['lunes_semana', 'client', 'project', 'h_asig', 'h_toggl', 'h_pendientes']]
+    # # df_toggl_asig.loc['total'] = df_toggl_asig.sum(numeric_only=True)
 
     df_summary_to_xlsx = df_summary_week.copy(deep=True)
 
@@ -105,9 +106,9 @@ def write_gsheet(df_toggl, id_gsheet=ID_GSHEET_2122):
     sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
     sheet_all = dr.get_sheet(gsheet, ID_SHEET_TOGGL_ALL)
     df_summary_all, df_summary_day, df_summary_to_xlsx, df_summary_week = get_agg_dfs(df_toggl)
-    a = dr.df_to_gsheet(df_summary_week, sheet_weekly)
-    a *= dr.df_to_gsheet(df_summary_day, sheet_daily)
-    a *= dr.df_to_gsheet(df_summary_all, sheet_all)
+    dr.df_to_gsheet(df_summary_week, sheet_weekly)
+    dr.df_to_gsheet(df_summary_day, sheet_daily)
+    dr.df_to_gsheet(df_summary_all, sheet_all)
 
 def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
     dates = pd.date_range(start_date, end_date)
@@ -121,7 +122,7 @@ def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
 '''
 Reading recent entries
 '''
-days_no_cache = 3
+days_no_cache = 1
 start_date = pd.to_datetime('2021-09-01')
 # end_date = pd.to_datetime('2021-12-25')
 end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
