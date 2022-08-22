@@ -56,7 +56,6 @@ def get_toggl_df(
             if df.shape[0]>0:
                 # df_toggl = df_toggl.(df)
                 df_toggl = df_toggl.append(df)
-        print(df_toggl.head())
         df_toggl.reset_index(inplace=True)
         df_toggl.drop("index", axis=1, inplace=True)
         return df_toggl

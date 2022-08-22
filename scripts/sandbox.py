@@ -122,7 +122,7 @@ def get_dates_cache_no_cache(start_date, end_date, days_no_cache):
 '''
 Reading recent entries
 '''
-days_no_cache = 1
+days_no_cache = 3
 start_date = pd.to_datetime('2021-09-01')
 # end_date = pd.to_datetime('2021-12-25')
 end_date = pd.to_datetime(datetime.today() + timedelta(days=1))

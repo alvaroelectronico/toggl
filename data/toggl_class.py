@@ -1,11 +1,7 @@
-import datetime
 import os
 from time import *
 import pytz
-
-import numpy as np
 import pandas as pd
-import json
 import data_io.drive_io as dr
 from datetime import *
 from data.config import (
@@ -16,9 +12,7 @@ from data.config import (
     USE_CACHE,
     ID_GSHEET_2122,
     ID_GSHEET_2223,
-    ID_SHEET_TOGGL_ALL,
-    ID_SHEET_TOGGL_DAILY,
-    ID_SHEET_TOGGL_WEEKLY,
+    ID_SHEET_TOGGL_ALL
 )
 from toggl.TogglPy import Toggl
 
@@ -29,7 +23,7 @@ class ToggleObj:
 
     def __init__(self, toggl_token_path=TOGGL_TOKEN_PATH, toggl_cache_path=TOGGL_CACHE_PATH,
                  start_date=START_DATE_DEF, end_date=END_DATE_DEF, days_no_cache=3,
-                 id_gsheet=ID_GSHEET_2122):
+                 id_gsheet=ID_GSHEET_2122, export_to_ghseet=True):
 
         # create a Toggl object and set our API key
         self.toggl_cache_path = toggl_cache_path
@@ -47,16 +41,22 @@ class ToggleObj:
         self.df_summary_to_xlsx = pd.DataFrame()
         self.df_summary_week = pd.DataFrame()
 
-        self.id_gsheet = id_gsheet
         self.start_date = start_date
         self.end_date = end_date
         self.days_no_cache = days_no_cache
+        self.id_gsheet = id_gsheet
+        self.export_to_gsheet = export_to_ghseet
         self.dates_cache = list()
         self.dates_no_cache = list()
         self._get_dates_cache_no_cache()
         self.get_df_toggl()
 
-    def read_cache_toggl_day(self, date):
+        if self.export_to_gsheet and self.id_gsheet is not None:
+            self._get_agg_dfs()
+            self._write_gsheet()
+
+
+    def read_cache_day(self, date):
         """"
         Returning a dataframe with Toggl information extracted from cache json files
         """
@@ -78,29 +78,31 @@ class ToggleObj:
 
         return df_toggl
 
-    def read_toggl_info(self, start_date=START_DATE_DEF, end_date=END_DATE_DEF, use_cache=USE_CACHE):
-        '''
-        This function returns a dataframe with all toggl entries either getting data from Toggle (using the Toggl API)
-        or reading from json files. When reading from Toggl directly info is exported as json files
-        '''
-        if use_cache and os.path.exists(self.toggl_cache_path):
+    def read_cache(self, start_date, end_date):
+        if os.path.exists(self.toggl_cache_path):
             dates = pd.date_range(start_date, end_date)
             dates = [d.strftime("%Y-%m-%d") for d in dates]
             df_toggl = pd.DataFrame()
             for d in dates:
-                df = self.read_cache_toggl_day(d)
+                df = self.read_cache_day(d)
                 if df is not None:
                     df_toggl = df_toggl.append(df)
             df_toggl.reset_index(inplace=True)
             df_toggl.drop("index", axis=1, inplace=True)
             return df_toggl
 
+    def read_toggl_day(self, date):
+        '''
+        This function returns a dataframe with all toggl entries either getting data from Toggle (using the Toggl API)
+        or reading from json files. When reading from Toggl directly info is exported as json files
+        '''
+
         request_config = dict(
             start_date="{}T00:00:00+00:00".format(
-                start_date
+                date
             ),
             end_date="{}T23:59:59+00:00".format(
-                end_date
+                date
             ),
         )
 
@@ -125,7 +127,6 @@ class ToggleObj:
                     "workspace",
                 ]
             )
-            df_toggl
             return df_toggl
 
         entries = list()
@@ -206,6 +207,18 @@ class ToggleObj:
 
         df_toggl.lunes_semana = pd.to_datetime(df_toggl.lunes_semana)
 
+        self.df_toggl_to_json_files(df_toggl)
+
+        return df_toggl
+
+    def read_toggl(self, start_date, end_date):
+        df_toggl = pd.DataFrame()
+        for d in pd.date_range(start_date, end_date):
+            d_str = d.strftime("%Y-%m-%d")
+            print("reading {}".format(d_str))
+            df = self.read_toggl_day(d_str)
+            print("read {}".format(d_str))
+            df_toggl = df_toggl.append(df)
         return df_toggl
 
     def get_df_toggl(self):
@@ -215,50 +228,43 @@ class ToggleObj:
             start_date = self.dates_cache[0]
             end_date = self.dates_cache[len(self.dates_cache) - 1]
             print("reading cache for {} to {}".format(start_date, end_date))
-            df_toggl = self.read_toggl_info(start_date, end_date, use_cache=True)
+            df_toggl = self.read_cache(start_date, end_date)
         else:
             df_toggl = pd.DataFrame()
 
         # If there are days to read directly from Toggle, information from each of those days is retrived as
         # a dataframe and appended to the existing one
-        for d in self.dates_no_cache:
-            d_str = d.strftime("%Y-%m-%d")
-            print("reading {}".format(d_str))
-            df = self.read_toggl_info(d_str, d_str, use_cache=False)
-            print("read {}".format(d_str))
-            df_toggl = df_toggl.append(df)
+        if len(self.dates_no_cache) > 0:
+            start_date = self.dates_no_cache[0]
+            end_date = self.dates_no_cache[len(self.dates_no_cache) - 1]
+            df_toggl = df_toggl.append(self.read_toggl(start_date, end_date))
 
         df_toggl.reset_index(inplace=True)
         df_toggl.drop("index", axis=True, inplace=True)
         self.df_toggl = df_toggl
 
-        if self.toggl_cache_path is not None:
-            self.df_toggl_to_json_files()
-
-        if self.id_gsheet is not None:
-            self._get_agg_dfs()
-            self._write_gsheet()
-
-    def df_toggl_to_json_files(self):
+    def df_toggl_to_json_files(self, df_toggl):
         '''
         Given a dataframe with Toggl info, data is stored in as many json files as days
         '''
+        if self.toggl_cache_path is not None:
+            df = df_toggl.copy(deep=True)
+            df.date = df.date.apply(lambda x: x.strftime("%Y-%m-%d"))
+            df.lunes_semana = df.lunes_semana.apply(lambda x: x.strftime("%Y-%m-%d"))
+            df.start = df.start.apply(lambda x: x.strftime("%Y-%m-%d %H:%M"))
 
-        df = self.df_toggl.copy(deep=True)
-        df.date = df.date.apply(lambda x: x.strftime("%Y-%m-%d"))
-        df.lunes_semana = df.lunes_semana.apply(lambda x: x.strftime("%Y-%m-%d"))
-        df.start = df.start.apply(lambda x: x.strftime("%Y-%m-%d %H:%M"))
+            dates = pd.date_range(df.date.min(), df.date.max()).tolist()
+            dates = [d.strftime("%Y-%m-%d") for d in dates]
 
-        dates = pd.date_range(df.date.min(), df.date.max()).tolist()
-        dates = [d.strftime("%Y-%m-%d") for d in dates]
-
-        for d in dates:
-            df_to_json = df[df.date == d]
-            if df_to_json.shape[0] > 0:
-                entries = df_to_json.to_json(orient='records', lines=True, date_format='iso')
-                file_path = "{}/{}.json".format(self.toggl_cache_path, d)
-                with open(file_path, "w") as f:
-                    f.write(entries)
+            for d in dates:
+                df_to_json = df[df.date == d]
+                if df_to_json.shape[0] > 0:
+                    entries = df_to_json.to_json(orient='records', lines=True, date_format='iso')
+                    file_path = "{}/{}.json".format(self.toggl_cache_path, d)
+                    with open(file_path, "w") as f:
+                        f.write(entries)
+        else:
+            print("no json files generated (no cache path given)")
 
     def _get_dates_cache_no_cache(self):
         dates = pd.date_range(start_date, end_date)
@@ -312,9 +318,11 @@ class ToggleObj:
         # dr.df_to_gsheet(self.df_summary_day, sheet_daily)
 
 
-days_no_cache = 0
-start_date = pd.to_datetime('2022-08-01')
-end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
-# toggl2122 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache, id_gsheet=ID_GSHEET_2122)
-toggl2223 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache, id_gsheet=ID_GSHEET_2223)
+if __name__ == '__main__':
+    days_no_cache = 0
+    start_date = pd.to_datetime('2021-09-01')
+    end_date = pd.to_ime ldatetime(datetime.today() + timedelta(days=1))
+    toggl2122 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache,
+                          id_gsheet=ID_GSHEET_2122, export_to_ghseet=True)
+    # toggl2223 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache, id_gsheet=ID_GSHEET_2223)
 
