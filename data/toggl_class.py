@@ -12,7 +12,9 @@ from data.config import (
     USE_CACHE,
     ID_GSHEET_2122,
     ID_GSHEET_2223,
-    ID_SHEET_TOGGL_ALL
+    ID_SHEET_TOGGL_ALL,
+    ID_SHEET_TOGGL_DAILY,
+    ID_SHEET_TOGGL_WEEKLY
 )
 from toggl.TogglPy import Toggl
 
@@ -48,7 +50,7 @@ class ToggleObj:
         self.export_to_gsheet = export_to_ghseet
         self.dates_cache = list()
         self.dates_no_cache = list()
-        self._get_dates_cache_no_cache()
+        self._get_dates_cache_no_cache(self.start_date, self.end_date)
         self.get_df_toggl()
 
         if self.export_to_gsheet and self.id_gsheet is not None:
@@ -266,7 +268,7 @@ class ToggleObj:
         else:
             print("no json files generated (no cache path given)")
 
-    def _get_dates_cache_no_cache(self):
+    def _get_dates_cache_no_cache(self, start_date, end_date):
         dates = pd.date_range(start_date, end_date)
         self.days_cache = max(0, len(dates) - self.days_no_cache)
         self.dates_cache = dates[0: self.days_cache]
@@ -308,21 +310,30 @@ class ToggleObj:
     def _write_gsheet(self):
         client = dr.get_client()
         gsheet = dr.get_gsheet(client, self.id_gsheet)
+
         sheet_all = dr.get_sheet(gsheet, ID_SHEET_TOGGL_ALL)
         sheet_all.clear()
         dr.df_to_gsheet(self.df_summary_all, sheet_all)
+
+        sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
+        sheet_daily.clear()
+        dr.df_to_gsheet(self.df_summary_day, sheet_daily)
+
+        sheet_weekly = dr.get_sheet(gsheet, ID_SHEET_TOGGL_WEEKLY)
+        sheet_weekly.clear()
+        dr.df_to_gsheet(self.df_summary_week, sheet_weekly)
+
         print("Info exported to ghseets")
-        # sheet_weekly = dr.get_sheet(gsheet, ID_SHEET_TOGGL_WEEKLY)
-        # sheet_daily = dr.get_sheet(gsheet, ID_SHEET_TOGGL_DAILY)
-        # dr.df_to_gsheet(self.df_summary_week, sheet_weekly)
-        # dr.df_to_gsheet(self.df_summary_day, sheet_daily)
+
+
 
 
 if __name__ == '__main__':
-    days_no_cache = 0
-    start_date = pd.to_datetime('2021-09-01')
-    end_date = pd.to_ime ldatetime(datetime.today() + timedelta(days=1))
-    toggl2122 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache,
-                          id_gsheet=ID_GSHEET_2122, export_to_ghseet=True)
-    # toggl2223 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache, id_gsheet=ID_GSHEET_2223)
+    days_no_cache = 3
+    start_date = pd.to_datetime('2022-09-01')
+    end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
+    # toggl2122 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache,
+    #                      id_gsheet=ID_GSHEET_2122, export_to_ghseet=True)
+    toggl2223 = ToggleObj(TOGGL_TOKEN_PATH, TOGGL_CACHE_PATH, start_date, end_date, days_no_cache,
+                          id_gsheet=ID_GSHEET_2223, export_to_ghseet=True)
 
