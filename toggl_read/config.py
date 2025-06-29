@@ -11,19 +11,13 @@ TOGGL_TOKEN_PATH = get_abs_path("toggl_token.txt")
 JSON_CRED_PATH = get_abs_path('togglag_credentials.json')
 
 # Cache folder
-TOGGL_CACHE_PATH = get_abs_path("toggl")
+TOGGL_CACHE_PATH = get_abs_path("toggl_cache")
 ASIGNACION_PATH = get_abs_path("asignacion.xlsx")
+TOGGL_USER_ALVARO = 2833532
 
 # Configuration
 USE_CACHE = False
 START_DATE_DEF = '2021-09-01'
 END_DATE_DEF = datetime.today().strftime("%Y-%m-%d")
 
-# Output files
-ID_GSHEET_2122 = "1xxqT3cYf1CxJH9H1Ncgx32Lg833ycJVAwfCeXX2ee6Q"
-ID_GSHEET_2223 = "1w4XmbxQv4SuilRu1Fp4xXgndU9Ss3-fcG7p7FBAR4mY"
-ID_SHEET_ASIG = 392173937
-ID_SHEET_TOGGL_WEEKLY = 266709097
-ID_SHEET_TOGGL_DAILY = 1350237449
-ID_SHEET_TOGGL_ALL = 1650948761
 

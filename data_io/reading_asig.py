@@ -6,7 +6,7 @@ from datetime import *
 """
 TO-DELETE
 """
-# file_path = ".\\data\\asignacion.xlsx"
+# file_path = ".\\toggl_read\\asignacion.xlsx"
 
 """
 """
