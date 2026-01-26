@@ -148,7 +148,7 @@ class TimeforkObj:
 
             if len(self.dates_no_cache) > 0:
                 start_date = self.dates_no_cache[0]
-                end_date = self.dates_no_cache[len(self.dates_no_cache) - 1]
+                end_date = self.dates_no_cache[len(self.dates_no_cache) - 1 ]
                 logger.info(f"Leyendo Timefork de BBDD: {start_date} a {end_date}")
                 df_no_cache = self.read_bbdd_timefork(start_date, end_date, self.db.engine_timefork)
                 df = pd.concat([df, df_no_cache])
@@ -267,7 +267,7 @@ class TimeforkObj:
 if __name__ == "__main__":
     from datetime import datetime, timedelta
     days_no_cache = 100
-    start_date = "2024-09-01"
+    start_date = "2025-09-01"
     end_date = datetime.today().strftime('%Y-%m-%d')
     get_entries = True
     export_cache_to_json = True

@@ -60,13 +60,15 @@ class ToggleObj:
 
 
     def check_entries_without_client(self, df):
-        df2 = df[(df.client.isna()) | (df.project.isna())]
+        
+        if not df.empty:
+            df2 = df[(df.client.isna()) | (df.project.isna())]
 
-        if df2.shape[0] > 0:
-            for i in df2['date'].unique():
-                i_np = np.datetime64(i)  # Convert to NumPy datetime object
-                date_str = np.datetime_as_string(i_np, unit='D')
-                print(f"{date_str} contiene registros sin fecha en el cliente o sin project")
+            if df2.shape[0] > 0:
+                for i in df2['date'].unique():
+                    i_np = np.datetime64(i)  # Convert to NumPy datetime object
+                    date_str = np.datetime_as_string(i_np, unit='D')
+                    print(f"{date_str} contiene registros sin fecha en el cliente o sin project")
 
     def read_cache_day(self, date):
         """ "
@@ -200,20 +202,21 @@ class ToggleObj:
                 sleep(3)
                 page += 1
         # ********************************************************************************************************
-        df_entries["date"] = df_entries["start"].apply(
-            lambda x: pd.to_datetime(x).strftime("%Y-%m-%d")
-        )
-        df_entries["date"] = df_entries["date"].apply(lambda x: pd.to_datetime(x))
-        df_entries["h_toggl"] = df_entries["duration"] / 1000 / 60 / 60 # Toggl provides dur as milisecs
-        df_entries["lunes_semana"] = df_entries["date"].apply(
-            lambda x: pd.to_datetime(x)
-                      - timedelta(days=pd.to_datetime(x).weekday() % 7)
-        )
-        print("info read")
-        df_entries = df_entries[['date', 'client', 'project', 'h_toggl', 'description', 'start', 'lunes_semana', 'workspace']]
+        if not df_entries.empty:
+            df_entries["date"] = df_entries["start"].apply(
+                lambda x: pd.to_datetime(x).strftime("%Y-%m-%d")
+            )
+            df_entries["date"] = df_entries["date"].apply(lambda x: pd.to_datetime(x))
+            df_entries["h_toggl"] = df_entries["duration"] / 1000 / 60 / 60 # Toggl provides dur as milisecs
+            df_entries["lunes_semana"] = df_entries["date"].apply(
+                lambda x: pd.to_datetime(x)
+                          - timedelta(days=pd.to_datetime(x).weekday() % 7)
+            )
+            print("info read")
+            df_entries = df_entries[['date', 'client', 'project', 'h_toggl', 'description', 'start', 'lunes_semana', 'workspace']]
 
-        if self.export_cache_to_json:
-            self.df_toggl_to_json_files(df_entries)
+            if self.export_cache_to_json:
+                self.df_toggl_to_json_files(df_entries)
 
         return df_entries
 
