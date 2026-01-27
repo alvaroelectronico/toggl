@@ -208,47 +208,152 @@ class TimeforkObj:
 
     def read_bbdd_timefork(self, start_date: str, end_date: str, engine) -> pd.DataFrame:
         """
-        Lee datos de Timefork desde la base de datos.
+        Lee datos de Timefork desde la base de datos y hace joins con las tablas de referencia
+        para reemplazar IDs con nombres.
         
         Args:
             start_date: Fecha de inicio en formato 'YYYY-MM-DD'
             end_date: Fecha de fin en formato 'YYYY-MM-DD'
-            engine: Conexión SQLAlchemy a la base de datos
+            engine: Conexión SQLAlchemy a la base de datos (mantenido por compatibilidad)
             
         Returns:
-            DataFrame con los datos de Timefork procesados
+            DataFrame con los datos de Timefork procesados y nombres en lugar de IDs
         """
         try:
-            # Consulta SQL
-            query_str = f"""
-                SELECT * 
-                FROM timefork_time_entries 
-                WHERE start_date >= '{start_date}' 
-                AND end_date <= '{end_date}'
-                AND user_email = 'alvaro.garcia@baobabsoluciones.es'
-            """
-            logger.info(f"Ejecutando consulta Timefork: {query_str}")
-            df_entries = pd.read_sql(query_str, engine)
+            # Leer las tablas de referencia
+            logger.info("Leyendo tablas de referencia...")
+            df_clients = self.get_df_clients()
+            df_projects = self.get_df_projects()
+            df_phases = self.get_df_phases()
+            df_blocks = self.get_df_blocks()
             
-            # Renombrar columnas
-            df_entries = df_entries[['start_date', 'client', 'project', 'end_date', 'description']]
-
-            df_entries['date'] = df_entries['start_date'].apply(lambda x: datetime.strftime(x, "%Y-%m-%d"))
-            df_entries['h_toggl'] = df_entries['end_date'] - df_entries['start_date']
-            df_entries['h_toggl'] = df_entries['h_toggl'].apply(lambda x: x.total_seconds() / 3600)
-            df_entries['lunes_semana'] = df_entries['date'].apply(
-                lambda x: pd.to_datetime(x)
-                        - timedelta(days=pd.to_datetime(x).weekday() % 7)
-            )
-            df_entries['workspace'] = 'Socios'
-            df_entries.rename(columns={'start_date': 'start'}, inplace=True)
+            # Leer las entradas de tiempo
+            df_entries = self.get_df_time_entries(start_date, end_date)
             
-        
-            # Eliminar acentos
-            df_entries = df_entries.apply(lambda x: x.map(lambda x: unidecode.unidecode(x) if isinstance(x, str) else x))
-            df_entries = df_entries[['date', 'client', 'project', 'h_toggl', 'description', 'start', 'lunes_semana', 'workspace']]
-
-
+            if df_entries.empty:
+                logger.warning("No se encontraron entradas en el rango de fechas especificado")
+                return pd.DataFrame()
+            
+            # Detectar automáticamente las columnas de ID en df_entries
+            # Buscar columnas que puedan ser IDs
+            client_id_col = None
+            project_id_col = None
+            phase_id_col = None
+            block_id_col = None
+            
+            for col in df_entries.columns:
+                col_lower = col.lower()
+                if col_lower in ['client_id', 'clientid'] and client_id_col is None:
+                    client_id_col = col
+                elif col_lower in ['project_id', 'projectid'] and project_id_col is None:
+                    project_id_col = col
+                elif col_lower in ['phase_id', 'phaseid'] and phase_id_col is None:
+                    phase_id_col = col
+                elif col_lower in ['block_id', 'blockid'] and block_id_col is None:
+                    block_id_col = col
+            
+            # Hacer joins para reemplazar IDs con nombres
+            # Join con clients
+            if client_id_col:
+                df_entries = df_entries.merge(
+                    df_clients,
+                    left_on=client_id_col,
+                    right_on='client_id',
+                    how='left',
+                    suffixes=('', '_client')
+                )
+                # Eliminar la columna de ID y mantener solo el nombre
+                if client_id_col in df_entries.columns:
+                    df_entries = df_entries.drop(columns=[client_id_col])
+                if 'client_id' in df_entries.columns:
+                    df_entries = df_entries.drop(columns=['client_id'])
+                logger.info("Join con tabla de clientes completado")
+            
+            # Join con projects
+            if project_id_col:
+                df_entries = df_entries.merge(
+                    df_projects,
+                    left_on=project_id_col,
+                    right_on='project_id',
+                    how='left',
+                    suffixes=('', '_project')
+                )
+                # Eliminar la columna de ID y mantener solo el nombre
+                if project_id_col in df_entries.columns:
+                    df_entries = df_entries.drop(columns=[project_id_col])
+                if 'project_id' in df_entries.columns:
+                    df_entries = df_entries.drop(columns=['project_id'])
+                logger.info("Join con tabla de proyectos completado")
+            
+            # Join con phases
+            if phase_id_col:
+                df_entries = df_entries.merge(
+                    df_phases,
+                    left_on=phase_id_col,
+                    right_on='phase_id',
+                    how='left',
+                    suffixes=('', '_phase')
+                )
+                # Eliminar la columna de ID y mantener solo el nombre
+                if phase_id_col in df_entries.columns:
+                    df_entries = df_entries.drop(columns=[phase_id_col])
+                if 'phase_id' in df_entries.columns:
+                    df_entries = df_entries.drop(columns=['phase_id'])
+                logger.info("Join con tabla de fases completado")
+            
+            # Join con blocks
+            if block_id_col:
+                df_entries = df_entries.merge(
+                    df_blocks,
+                    left_on=block_id_col,
+                    right_on='block_id',
+                    how='left',
+                    suffixes=('', '_block')
+                )
+                # Eliminar la columna de ID y mantener solo el nombre
+                if block_id_col in df_entries.columns:
+                    df_entries = df_entries.drop(columns=[block_id_col])
+                if 'block_id' in df_entries.columns:
+                    df_entries = df_entries.drop(columns=['block_id'])
+                logger.info("Join con tabla de bloques completado")
+            
+            # Procesar las columnas de fecha y tiempo
+            # Asegurarse de que start_date y end_date existen
+            if 'start_date' in df_entries.columns:
+                df_entries['date'] = df_entries['start_date'].apply(lambda x: datetime.strftime(x, "%Y-%m-%d") if pd.notna(x) else None)
+                df_entries['h_toggl'] = None
+                if 'end_date' in df_entries.columns:
+                    df_entries['h_toggl'] = df_entries['end_date'] - df_entries['start_date']
+                    df_entries['h_toggl'] = df_entries['h_toggl'].apply(
+                        lambda x: x.total_seconds() / 3600 if pd.notna(x) else None
+                    )
+                
+                df_entries['lunes_semana'] = df_entries['date'].apply(
+                    lambda x: pd.to_datetime(x) - timedelta(days=pd.to_datetime(x).weekday() % 7) 
+                    if pd.notna(x) else None
+                )
+                df_entries['workspace'] = 'Socios'
+                df_entries.rename(columns={'start_date': 'start'}, inplace=True)
+            
+            # Eliminar columnas no deseadas
+            cols_to_drop = ['id', 'user_email', 'user_id', 'end_date']
+            df_entries = df_entries.drop(columns=[col for col in cols_to_drop if col in df_entries.columns])
+            
+            # Seleccionar y ordenar columnas principales
+            # Intentar mantener las columnas esperadas, pero ser flexible si no existen
+            expected_cols = ['date', 'client', 'project', 'phase', 'block', 'h_toggl', 'description', 'start', 'lunes_semana', 'workspace']
+            available_cols = [col for col in expected_cols if col in df_entries.columns]
+            # Agregar cualquier otra columna que no esté en la lista esperada
+            other_cols = [col for col in df_entries.columns if col not in expected_cols]
+            df_entries = df_entries[available_cols + other_cols]
+            
+            # Eliminar acentos de todas las columnas de texto
+            for col in df_entries.columns:
+                if df_entries[col].dtype == 'object':
+                    df_entries[col] = df_entries[col].apply(
+                        lambda x: unidecode.unidecode(x) if isinstance(x, str) else x
+                    )
+            
             if self.export_cache_to_json:
                 self.df_timefork_to_json_files(df_entries)
 
@@ -263,6 +368,256 @@ class TimeforkObj:
             self.days_cache = max(0, len(dates) - self.days_no_cache)
             self.dates_cache = dates[0 : self.days_cache]
             self.dates_no_cache = dates[self.days_cache :]
+    
+    def get_df_time_entries(self, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        Lee la tabla timefork_time_entries desde la base de datos.
+        
+        Args:
+            start_date: Fecha de inicio en formato 'YYYY-MM-DD'
+            end_date: Fecha de fin en formato 'YYYY-MM-DD'
+            
+        Returns:
+            DataFrame con todas las columnas de timefork_time_entries
+        """
+        if self.db is None:
+            raise ValueError("No se ha proporcionado una conexión a la base de datos")
+        
+        try:
+            table_name = 'timefork_time_entries'
+            query_str = f"""
+                SELECT * 
+                FROM {table_name} 
+                WHERE start_date >= '{start_date}' 
+                AND end_date <= '{end_date}'
+                AND user_email = 'alvaro.garcia@baobabsoluciones.es'
+            """
+            logger.info(f"Leyendo tabla {table_name}")
+            df_entries = pd.read_sql(query_str, self.db.engine_timefork)
+            
+            logger.info(f"Se leyeron {len(df_entries)} entradas de la tabla {table_name}")
+            return df_entries
+            
+        except Exception as e:
+            logger.error(f"Error al leer datos de {table_name}: {str(e)}")
+            raise
+    
+    def get_df_clients(self) -> pd.DataFrame:
+        """
+        Lee la tabla timefork_clients desde la base de datos.
+        
+        Returns:
+            DataFrame con las columnas 'client_id' y 'client'
+        """
+        if self.db is None:
+            raise ValueError("No se ha proporcionado una conexión a la base de datos")
+        
+        try:
+            table_name = 'timefork_clients'
+            query_str = f"SELECT * FROM {table_name}"
+            logger.info(f"Leyendo tabla {table_name}")
+            df_clients = pd.read_sql(query_str, self.db.engine_timefork)
+            
+            # Detectar automáticamente las columnas de ID y nombre
+            # Buscar columna de ID (puede ser 'id', 'client_id', etc.)
+            id_column = None
+            name_column = None
+            
+            for col in df_clients.columns:
+                col_lower = col.lower()
+                if col_lower in ['id', 'client_id'] and id_column is None:
+                    id_column = col
+                elif col_lower in ['name', 'client', 'client_name'] and name_column is None:
+                    name_column = col
+            
+            # Si no se encontraron, usar las primeras dos columnas
+            if id_column is None:
+                id_column = df_clients.columns[0]
+                logger.warning(f"No se encontró columna de ID, usando: {id_column}")
+            
+            if name_column is None:
+                name_column = df_clients.columns[1] if len(df_clients.columns) > 1 else df_clients.columns[0]
+                logger.warning(f"No se encontró columna de nombre, usando: {name_column}")
+            
+            # Crear DataFrame con las columnas estandarizadas
+            df_result = pd.DataFrame({
+                'client_id': df_clients[id_column],
+                'client': df_clients[name_column]
+            })
+            
+            # Eliminar acentos de la columna client
+            df_result['client'] = df_result['client'].apply(
+                lambda x: unidecode.unidecode(x) if isinstance(x, str) else x
+            )
+            
+            logger.info(f"Se leyeron {len(df_result)} clientes de la tabla {table_name}")
+            return df_result
+            
+        except Exception as e:
+            logger.error(f"Error al leer datos de {table_name}: {str(e)}")
+            raise
+    
+    def get_df_projects(self) -> pd.DataFrame:
+        """
+        Lee la tabla timefork_projects desde la base de datos.
+        
+        Returns:
+            DataFrame con las columnas 'project_id' y 'project'
+        """
+        if self.db is None:
+            raise ValueError("No se ha proporcionado una conexión a la base de datos")
+        
+        try:
+            table_name = 'timefork_projects'
+            query_str = f"SELECT * FROM {table_name}"
+            logger.info(f"Leyendo tabla {table_name}")
+            df_projects = pd.read_sql(query_str, self.db.engine_timefork)
+            
+            # Detectar automáticamente las columnas de ID y nombre
+            id_column = None
+            name_column = None
+            
+            for col in df_projects.columns:
+                col_lower = col.lower()
+                if col_lower in ['id', 'project_id'] and id_column is None:
+                    id_column = col
+                elif col_lower in ['name', 'project', 'project_name'] and name_column is None:
+                    name_column = col
+            
+            # Si no se encontraron, usar las primeras dos columnas
+            if id_column is None:
+                id_column = df_projects.columns[0]
+                logger.warning(f"No se encontró columna de ID, usando: {id_column}")
+            
+            if name_column is None:
+                name_column = df_projects.columns[1] if len(df_projects.columns) > 1 else df_projects.columns[0]
+                logger.warning(f"No se encontró columna de nombre, usando: {name_column}")
+            
+            # Crear DataFrame con las columnas estandarizadas
+            df_result = pd.DataFrame({
+                'project_id': df_projects[id_column],
+                'project': df_projects[name_column]
+            })
+            
+            # Eliminar acentos de la columna project
+            df_result['project'] = df_result['project'].apply(
+                lambda x: unidecode.unidecode(x) if isinstance(x, str) else x
+            )
+            
+            logger.info(f"Se leyeron {len(df_result)} proyectos de la tabla {table_name}")
+            return df_result
+            
+        except Exception as e:
+            logger.error(f"Error al leer datos de {table_name}: {str(e)}")
+            raise
+    
+    def get_df_phases(self) -> pd.DataFrame:
+        """
+        Lee la tabla timefork_phase desde la base de datos.
+        
+        Returns:
+            DataFrame con las columnas 'phase_id' y 'phase'
+        """
+        if self.db is None:
+            raise ValueError("No se ha proporcionado una conexión a la base de datos")
+        
+        try:
+            table_name = 'timefork_phase'
+            query_str = f"SELECT * FROM {table_name}"
+            logger.info(f"Leyendo tabla {table_name}")
+            df_phases = pd.read_sql(query_str, self.db.engine_timefork)
+            
+            # Detectar automáticamente las columnas de ID y nombre
+            id_column = None
+            name_column = None
+            
+            for col in df_phases.columns:
+                col_lower = col.lower()
+                if col_lower in ['id', 'phase_id'] and id_column is None:
+                    id_column = col
+                elif col_lower in ['name', 'phase', 'phase_name'] and name_column is None:
+                    name_column = col
+            
+            # Si no se encontraron, usar las primeras dos columnas
+            if id_column is None:
+                id_column = df_phases.columns[0]
+                logger.warning(f"No se encontró columna de ID, usando: {id_column}")
+            
+            if name_column is None:
+                name_column = df_phases.columns[1] if len(df_phases.columns) > 1 else df_phases.columns[0]
+                logger.warning(f"No se encontró columna de nombre, usando: {name_column}")
+            
+            # Crear DataFrame con las columnas estandarizadas
+            df_result = pd.DataFrame({
+                'phase_id': df_phases[id_column],
+                'phase': df_phases[name_column]
+            })
+            
+            # Eliminar acentos de la columna phase
+            df_result['phase'] = df_result['phase'].apply(
+                lambda x: unidecode.unidecode(x) if isinstance(x, str) else x
+            )
+            
+            logger.info(f"Se leyeron {len(df_result)} fases de la tabla {table_name}")
+            return df_result
+            
+        except Exception as e:
+            logger.error(f"Error al leer datos de {table_name}: {str(e)}")
+            raise
+    
+    def get_df_blocks(self) -> pd.DataFrame:
+        """
+        Lee la tabla timefork_block desde la base de datos.
+        
+        Returns:
+            DataFrame con las columnas 'block_id' y 'block'
+        """
+        if self.db is None:
+            raise ValueError("No se ha proporcionado una conexión a la base de datos")
+        
+        try:
+            table_name = 'timefork_block'
+            query_str = f"SELECT * FROM {table_name}"
+            logger.info(f"Leyendo tabla {table_name}")
+            df_blocks = pd.read_sql(query_str, self.db.engine_timefork)
+            
+            # Detectar automáticamente las columnas de ID y nombre
+            id_column = None
+            name_column = None
+            
+            for col in df_blocks.columns:
+                col_lower = col.lower()
+                if col_lower in ['id', 'block_id'] and id_column is None:
+                    id_column = col
+                elif col_lower in ['name', 'block', 'block_name'] and name_column is None:
+                    name_column = col
+            
+            # Si no se encontraron, usar las primeras dos columnas
+            if id_column is None:
+                id_column = df_blocks.columns[0]
+                logger.warning(f"No se encontró columna de ID, usando: {id_column}")
+            
+            if name_column is None:
+                name_column = df_blocks.columns[1] if len(df_blocks.columns) > 1 else df_blocks.columns[0]
+                logger.warning(f"No se encontró columna de nombre, usando: {name_column}")
+            
+            # Crear DataFrame con las columnas estandarizadas
+            df_result = pd.DataFrame({
+                'block_id': df_blocks[id_column],
+                'block': df_blocks[name_column]
+            })
+            
+            # Eliminar acentos de la columna block
+            df_result['block'] = df_result['block'].apply(
+                lambda x: unidecode.unidecode(x) if isinstance(x, str) else x
+            )
+            
+            logger.info(f"Se leyeron {len(df_result)} bloques de la tabla {table_name}")
+            return df_result
+            
+        except Exception as e:
+            logger.error(f"Error al leer datos de {table_name}: {str(e)}")
+            raise
     
 if __name__ == "__main__":
     from datetime import datetime, timedelta
