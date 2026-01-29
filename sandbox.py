@@ -13,7 +13,7 @@ def main():
 
     start_date = pd.to_datetime("2025-09-01")
     end_date = pd.to_datetime(datetime.today() + timedelta(days=1))
-    days_no_cache = 300
+    days_no_cache = 180
     export_to_ghseet = True
     export_to_csv = True
     export_cache_to_json = True
